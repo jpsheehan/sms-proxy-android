@@ -168,7 +168,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 hideSoftKeyboard();
                 if (state == ConnectionState.Disconnected) {
                     state = ConnectionState.Connecting;
-                    proxy = new SmsProxy(editTextServer.getText().toString(), self);
+                    proxy = new SmsProxy(self, editTextServer.getText().toString(), "e1abbcc5-5243-41b2-9368-c77b408b9bb3");
                     logClear();
                     numRx = 0;
                     numTx = 0;

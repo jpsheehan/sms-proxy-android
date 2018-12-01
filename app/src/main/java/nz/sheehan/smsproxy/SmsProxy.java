@@ -1,6 +1,7 @@
 package nz.sheehan.smsproxy;
 
 import android.content.Context;
+import android.util.Log;
 
 import com.android.volley.Network;
 import com.android.volley.Request;
@@ -16,25 +17,32 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class SmsProxy {
 
     private String server;
+    private String device;
     private RequestQueue queue;
 
-    public SmsProxy(String server, Context context) {
+    public SmsProxy(Context context, String server, String device) {
         this.server = server;
+        this.device = device;
         this.queue = Volley.newRequestQueue(context);
     }
 
     @Override
     public String toString() {
-        return server;
+        return String.format("%s@%s", device, server);
     }
 
     public String getServer() {
         return server;
     }
+
+    public String getDevice() { return device; }
+
+    private String getDeviceUri() { return String.format("%s/devices/%s", server, device); }
 
     public void getVersion(final NetworkCallback callback) {
 
@@ -60,14 +68,16 @@ public class SmsProxy {
     }
 
     public void getOutbox(final NetworkCallback callback) {
-        queue.add(new JsonArrayRequest(Request.Method.GET, server.concat("/outbox"), null,
-                new Response.Listener<JSONArray>() {
+        queue.add(new JsonObjectRequest(Request.Method.GET, getDeviceUri().concat("/outbox"), null,
+                new Response.Listener<JSONObject>() {
                     @Override
-                    public void onResponse(JSONArray response) {
+                    public void onResponse(JSONObject response) {
                         ArrayList<Message> messages = new ArrayList<>();
-                        for (int i = 0; i < response.length(); i++) {
+                        Iterator<String> keys = response.keys();
+                        while (keys.hasNext()) {
+                            String id = keys.next();
                             try {
-                                Message message = Message.fromJson((JSONObject)response.get(i));
+                                Message message = Message.fromJson((JSONObject)response.get(id));
                                 messages.add(message);
                             } catch (JSONException ex) {
                                 callback.onFailure(ex);
@@ -84,8 +94,8 @@ public class SmsProxy {
                 }));
     }
 
-    public void removeFromOutbox(String id, final NetworkCallback callback) {
-        queue.add(new JsonObjectRequest(Request.Method.DELETE, server.concat("/outbox/".concat(id)), null,
+    public void removeFromOutbox(final String id, final NetworkCallback callback) {
+        queue.add(new JsonObjectRequest(Request.Method.DELETE, getDeviceUri().concat("/outbox/".concat(id)), null,
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
@@ -105,7 +115,7 @@ public class SmsProxy {
         try {
             json.accumulate("number", number);
             json.accumulate("text", text);
-            queue.add(new JsonObjectRequest(Request.Method.POST, server.concat("/inbox"), json,
+            queue.add(new JsonObjectRequest(Request.Method.POST, getDeviceUri().concat("/inbox"), json,
                     new Response.Listener<JSONObject>() {
                         @Override
                         public void onResponse(JSONObject response) {
