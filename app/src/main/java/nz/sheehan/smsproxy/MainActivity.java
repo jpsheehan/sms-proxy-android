@@ -50,6 +50,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
     private static String TAG = "MainActivity";
     private static String SERVER = "http://192.168.1.6:4000";
     private static final int POLL_DELAY = 5 * 1000;
+    private static final int TEARDOWN_DELAY = 1000;
+    private static final int CONNECTION_DELAY = 1000;
 
     private boolean smsSendEnabled = false;
     private boolean smsReceiveEnabled = false;
@@ -77,6 +79,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
         setContentView(R.layout.activity_main);
 
         self = this;
+        poller = new Handler();
 
         ObservableObject.getInstance().addObserver(this);
 
@@ -98,6 +101,52 @@ public class MainActivity extends AppCompatActivity implements Observer {
         editTextServer = findViewById(R.id.editTextServer);
         textViewLog = findViewById(R.id.textViewLog);
         scrollViewLog = findViewById(R.id.scrollViewLog);
+
+        final Runnable checkOutboxRunnable = new Runnable() {
+            public Runnable thisRunnable = this;
+            @Override
+            public void run() {
+                if (state == ConnectionState.Connected) {
+                    proxy.getOutbox(new NetworkCallback() {
+                        @Override
+                        public void onSuccess(Object result) {
+                            ArrayList<Message> messages = (ArrayList<Message>) result;
+                            for (int i = 0; i < messages.size(); i++) {
+                                final Message message = messages.get(i);
+                                proxy.removeFromOutbox(message.getId(), new NetworkCallback() {
+                                    @Override
+                                    public void onSuccess(Object result) {
+                                        sendSms(message.getNumber(), message.getText());
+                                        log("TX >> ".concat(message.getNumber()));
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception error) {
+                                        logError(error);
+                                    }
+                                });
+                            }
+
+                            // run this again in 10 seconds time
+                            if (state == ConnectionState.Connected) {
+                                poller.postDelayed(thisRunnable, POLL_DELAY);
+                            }
+
+                        }
+
+                        @Override
+                        public void onFailure(Exception error) {
+                            logError(error);
+
+                            // run this again in 10 seconds time
+                            if (state == ConnectionState.Connected) {
+                                poller.postDelayed(thisRunnable, POLL_DELAY);
+                            }
+                        }
+                    });
+                }
+            }
+        };
 
         buttonGrantSmsSendPermission.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -124,68 +173,49 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 if (state == ConnectionState.Disconnected) {
                     state = ConnectionState.Connecting;
                     proxy = new SmsProxy(editTextServer.getText().toString(), self);
-                    log("Connecting...");
-                    proxy.getVersion(new NetworkCallback() {
+                    logClear();
+                    log("connecting...");
+                    poller.postDelayed(new Runnable() {
                         @Override
-                        public void onSuccess(Object result) {
-                            String version = (String)result;
-                            log(String.format("sms-router v%s", version));
-                            log("Listening...");
-                            poller = new Handler();
-                            final Runnable checkOutboxRunnable = new Runnable() {
-                                public Runnable thisRunnable = this;
+                        public void run() {
+                            proxy.getVersion(new NetworkCallback() {
                                 @Override
-                                public void run() {
-                                    proxy.getOutbox(new NetworkCallback() {
-                                        @Override
-                                        public void onSuccess(Object result) {
-                                            ArrayList<Message> messages = (ArrayList<Message>)result;
-                                            for (int i = 0; i < messages.size(); i++) {
-                                                final Message message = messages.get(i);
-                                                proxy.removeFromOutbox(message.getId(), new NetworkCallback() {
-                                                    @Override
-                                                    public void onSuccess(Object result) {
-                                                        sendSms(message.getNumber(), message.getText());
-                                                        log("TX >> ".concat(message.getNumber()));
-                                                    }
+                                public void onSuccess(Object result) {
+                                    String version = (String)result;
+                                    log(String.format("sms-router v%s", version));
+                                    log("listening...");
 
-                                                    @Override
-                                                    public void onFailure(Exception error) {
-                                                        log("Err: ".concat(error.getMessage()));
-                                                    }
-                                                });
-                                            }
-
-                                            // run this again in 10 seconds time
-                                            poller.postDelayed(thisRunnable, POLL_DELAY);
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception error) {
-                                            log(String.format("Err: %s", error.getMessage()));
-
-                                            // run this again in 10 seconds time
-                                            poller.postDelayed(thisRunnable, POLL_DELAY);
-                                        }
-                                    });
+                                    // delay for 1 second to print the previous messages
+                                    poller.postDelayed(checkOutboxRunnable, 1000);
+                                    state = ConnectionState.Connected;
+                                    updateStatus();
                                 }
-                            };
-                            // delay for 1 second to print the previous messages
-                            poller.postDelayed(checkOutboxRunnable, 1000);
-                            state = ConnectionState.Connected;
-                            updateStatus();
-                        }
 
+                                @Override
+                                public void onFailure(Exception error) {
+                                    logError(error);
+                                    state = ConnectionState.Disconnected;
+                                    updateStatus();
+                                }
+                            });
+                        }
+                    }, CONNECTION_DELAY);
+
+                } else {
+                    state = ConnectionState.Disconnecting;
+                    log("disconnecting...");
+                    poller.removeCallbacks(checkOutboxRunnable);
+
+                    // add this one callback to set the state to disconnected.
+                    // it adds the illusion that we are actually doing some teardown
+                    poller.postDelayed(new Runnable() {
                         @Override
-                        public void onFailure(Exception error) {
-                            log(String.format("Err: %s", error.getMessage()));
+                        public void run() {
                             state = ConnectionState.Disconnected;
+                            log("disconnected");
                             updateStatus();
                         }
-                    });
-                } else {
-                    state = ConnectionState.Disconnected;
-                    log("Disconnected");
+                    }, TEARDOWN_DELAY);
                 }
                 updateStatus();
             }
@@ -201,12 +231,34 @@ public class MainActivity extends AppCompatActivity implements Observer {
         inputMethodManager.hideSoftInputFromWindow(editTextServer.getWindowToken(), 0);
     }
 
+    /**
+     * Logs a simple message to the onscreen console. The message will have the timestamp prepended.
+     * @param message The message to print to the console.
+     */
     private void log(String message) {
         String dateString = new SimpleDateFormat("dd/MM/YY HH:mm:ss").format(new Date());
         textViewLog.append(String.format("%s - %s", dateString, message.concat("\r\n")));
         scrollViewLog.fullScroll(View.FOCUS_DOWN); // scroll to the bottom
     }
 
+    /**
+     * Logs an error to the onscreen console.
+     * @param error The exception that occurred.
+     */
+    private void logError(Exception error) {
+        log(String.format("error: %s", error.getMessage()));
+    }
+
+    /**
+     * Clears the onscreen console of any text.
+     */
+    private void logClear() {
+        textViewLog.setText("");
+    }
+
+    /**
+     * Checks if the SMS receive permission has been granted and if not, prompts for it.
+     */
     private void checkForSmsReceivePermission() {
         if (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.RECEIVE_SMS) !=
@@ -220,6 +272,9 @@ public class MainActivity extends AppCompatActivity implements Observer {
         }
     }
 
+    /**
+     * Checks if the internet permission has been granted and if not, prompts for it.
+     */
     private void checkForInternetPermission() {
         if (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.INTERNET) !=
@@ -233,6 +288,9 @@ public class MainActivity extends AppCompatActivity implements Observer {
         }
     }
 
+    /**
+     * Checks if the SMS send permission has been granted and if not, prompts for it.
+     */
     private void checkForSmsSendPermission() {
         if (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.SEND_SMS) !=
@@ -268,6 +326,9 @@ public class MainActivity extends AppCompatActivity implements Observer {
         }
     }
 
+    /**
+     * Updates all the buttons and text on the screen based on the permissions and state.
+     */
     private void updateStatus() {
         buttonGrantSmsSendPermission.setEnabled(!smsSendEnabled);
         buttonGrantSmsReceivePermission.setEnabled(!smsReceiveEnabled);
@@ -296,42 +357,81 @@ public class MainActivity extends AppCompatActivity implements Observer {
         buttonConnectToggle.setEnabled(buttonEnabled);
     }
 
+    /**
+     * Receives a new SMS message, if it is multipart, it will be reassembled.
+     * @param observable
+     * @param data
+     */
     @Override
     public void update(Observable observable, Object data) {
         Intent intent = (Intent)data;
         Bundle bundle = intent.getExtras();
-        SmsMessage[] msgs;
+        SmsMessage[] messages;
         String format = bundle.getString("format");
 
         Object[] pdus = (Object[])bundle.get("pdus");
 
         if (pdus != null) {
-            msgs = new SmsMessage[pdus.length];
+            messages = new SmsMessage[pdus.length];
             for (int i = 0; i < pdus.length; i++) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    msgs[i] = SmsMessage.createFromPdu((byte[])pdus[i], format);
+                    messages[i] = SmsMessage.createFromPdu((byte[])pdus[i], format);
                 } else {
-                    msgs[i] = SmsMessage.createFromPdu((byte[])pdus[i]);
+                    messages[i] = SmsMessage.createFromPdu((byte[])pdus[i]);
                 }
-                String number = msgs[i].getDisplayOriginatingAddress();
-                String text = msgs[i].getDisplayMessageBody();
 
-                receiveSms(number, text);
             }
+
+            SmsMessage sms = messages[0];
+            String text = sms.getDisplayMessageBody();
+            String number = sms.getDisplayOriginatingAddress();
+
+            try {
+                if (!(messages.length == 1 || sms.isReplace())) {
+                    StringBuilder bodyText = new StringBuilder();
+                    for (int i = 0; i < messages.length; i++) {
+                        bodyText.append(messages[i].getMessageBody());
+                    }
+                    text = bodyText.toString();
+                }
+            } catch (Exception error) {
+                logError(error);
+                return;
+            }
+
+            receiveSms(number, text);
 
         }
     }
 
-    private void receiveSms(String number, String text) {
+    private void receiveSms(final String number, String text) {
 
-        log(String.format("RX << %s", number));
+        if (state == ConnectionState.Connected) {
+            proxy.addToInbox(number, text, new NetworkCallback() {
+                @Override
+                public void onSuccess(Object result) {
+                    log(String.format("RX << %s", number));
+                }
+
+                @Override
+                public void onFailure(Exception error) {
+                    logError(error);
+                }
+            });
+        }
+
     }
 
     private void sendSms(String number, String text) {
         checkForSmsSendPermission();
         if (smsSendEnabled) {
             SmsManager manager = SmsManager.getDefault();
-            manager.sendTextMessage(number, null, text, null, null);
+            ArrayList<String> parts = manager.divideMessage(text);
+            if (parts.size() == 1) {
+                manager.sendTextMessage(number, null, text, null, null);
+            } else {
+                manager.sendMultipartTextMessage(number, null, parts, null, null);
+            }
         }
     }
 }

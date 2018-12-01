@@ -2,6 +2,7 @@ package nz.sheehan.smsproxy;
 
 import android.content.Context;
 
+import com.android.volley.Network;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -97,6 +98,29 @@ public class SmsProxy {
                         callback.onFailure(error);
                     }
                 }));
+    }
+
+    public void addToInbox(String number, String text, final NetworkCallback callback) {
+        JSONObject json = new JSONObject();
+        try {
+            json.accumulate("number", number);
+            json.accumulate("text", text);
+            queue.add(new JsonObjectRequest(Request.Method.POST, server.concat("/inbox"), json,
+                    new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            callback.onSuccess(null);
+                        }
+                    },
+                    new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            callback.onFailure(error);
+                        }
+                    }));
+        } catch (JSONException ex) {
+            callback.onFailure(ex);
+        }
     }
 
 }
