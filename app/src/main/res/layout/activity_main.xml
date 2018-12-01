@@ -16,22 +16,62 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <Button
-            android:id="@+id/buttonGrantSMSSendPermission"
+            android:id="@+id/buttonGrantPermissions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/button_sms_send_denied" />
+            android:text="@string/button_denied" />
 
-        <Button
-            android:id="@+id/buttonGrantSMSReceivePermission"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/button_sms_receive_denied" />
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/buttonGrantInternetPermission"
+            <TextView
+                android:id="@+id/textViewTx"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:text="0"
+                android:textColor="@android:color/holo_blue_dark"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/textViewRx"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:text="0"
+                android:textColor="@android:color/holo_red_dark"
+                android:textSize="18sp" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/button_internet_denied" />
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/textViewTxHelper"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:text="TX"
+                android:textColor="@android:color/holo_blue_dark"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/textViewRxHelper"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:text="RX"
+                android:textColor="@android:color/holo_red_dark"
+                android:textSize="10sp" />
+        </LinearLayout>
 
         <EditText
             android:id="@+id/editTextServer"
@@ -64,7 +104,6 @@
                     android:id="@+id/textViewLog"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:autoLink="web|phone"
                     android:textColor="@android:color/white"
                     android:textIsSelectable="true"
                     android:textSize="12sp"

@@ -42,15 +42,16 @@ public class MainActivity extends AppCompatActivity implements Observer {
     private boolean internetEnabled = false;
     private ConnectionState state = ConnectionState.Disconnected;
 
+    private int numRx = 0;
+    private int numTx = 0;
+
     private SmsProxy proxy;
     private Handler poller;
 
-    private TextView textViewLog;
+    private TextView textViewLog, textViewRx, textViewTx;
     private ScrollView scrollViewLog;
 
-    private Button buttonGrantSmsSendPermission,
-        buttonGrantSmsReceivePermission,
-        buttonGrantInternetPermission,
+    private Button buttonGrantPermissions,
         buttonConnectToggle;
 
     private EditText editTextServer;
@@ -77,10 +78,11 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 Manifest.permission.INTERNET) ==
                 PackageManager.PERMISSION_GRANTED;
 
-        buttonGrantSmsSendPermission = findViewById(R.id.buttonGrantSMSSendPermission);
-        buttonGrantSmsReceivePermission = findViewById(R.id.buttonGrantSMSReceivePermission);
-        buttonGrantInternetPermission = findViewById(R.id.buttonGrantInternetPermission);
+        buttonGrantPermissions = findViewById(R.id.buttonGrantPermissions);
         buttonConnectToggle = findViewById(R.id.buttonConnectToggle);
+
+        textViewRx = findViewById(R.id.textViewRx);
+        textViewTx = findViewById(R.id.textViewTx);
 
         editTextServer = findViewById(R.id.editTextServer);
         textViewLog = findViewById(R.id.textViewLog);
@@ -132,21 +134,11 @@ public class MainActivity extends AppCompatActivity implements Observer {
             }
         };
 
-        buttonGrantSmsSendPermission.setOnClickListener(new View.OnClickListener() {
+        buttonGrantPermissions.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 checkForSmsSendPermission();
-            }
-        });
-        buttonGrantSmsReceivePermission.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
                 checkForSmsReceivePermission();
-            }
-        });
-        buttonGrantInternetPermission.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
                 checkForInternetPermission();
             }
         });
@@ -158,6 +150,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
                     state = ConnectionState.Connecting;
                     proxy = new SmsProxy(editTextServer.getText().toString(), self);
                     logClear();
+                    numRx = 0;
+                    numTx = 0;
                     log("connecting...");
                     poller.postDelayed(new Runnable() {
                         @Override
@@ -197,6 +191,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
                         public void run() {
                             state = ConnectionState.Disconnected;
                             log("disconnected");
+                            log(String.format(Locale.ENGLISH, "sent %d sms messages", numTx));
+                            log(String.format(Locale.ENGLISH, "received %d sms messages", numRx));
                             updateStatus();
                         }
                     }, TEARDOWN_DELAY);
@@ -314,16 +310,13 @@ public class MainActivity extends AppCompatActivity implements Observer {
      * Updates all the buttons and text on the screen based on the permissions and state.
      */
     private void updateStatus() {
-        buttonGrantSmsSendPermission.setEnabled(!smsSendEnabled);
-        buttonGrantSmsReceivePermission.setEnabled(!smsReceiveEnabled);
-        buttonGrantInternetPermission.setEnabled(!internetEnabled);
 
-        buttonGrantSmsSendPermission.setText(smsSendEnabled
-                ? R.string.button_sms_send_granted : R.string.button_sms_send_denied);
-        buttonGrantSmsReceivePermission.setText(smsReceiveEnabled
-                ? R.string.button_sms_receive_granted : R.string.button_sms_receive_denied);
-        buttonGrantInternetPermission.setText(internetEnabled
-                ? R.string.button_internet_granted : R.string.button_internet_denied);
+        boolean permissionsGranted = smsSendEnabled && smsReceiveEnabled && internetEnabled;
+
+        buttonGrantPermissions.setEnabled(!permissionsGranted);
+
+        buttonGrantPermissions.setText(permissionsGranted
+                ? R.string.button_granted : R.string.button_denied);
 
         buttonConnectToggle.setEnabled(smsSendEnabled && smsReceiveEnabled && internetEnabled);
         editTextServer.setEnabled(smsSendEnabled && smsReceiveEnabled && internetEnabled && state == ConnectionState.Disconnected);
@@ -332,13 +325,16 @@ public class MainActivity extends AppCompatActivity implements Observer {
         boolean buttonEnabled = true;
         switch (state) {
             case Connected: buttonText = "Disconnect from server"; break;
-            case Disconnected: buttonText = "Connect to server"; break;
+            case Disconnected: buttonText = "Connect to server"; buttonEnabled = permissionsGranted; break;
             case Connecting: buttonText = "Connecting..."; buttonEnabled = false; break;
             case Disconnecting: buttonText = "Disconnecting..."; buttonEnabled = false; break;
         }
 
         buttonConnectToggle.setText(buttonText);
         buttonConnectToggle.setEnabled(buttonEnabled);
+
+        textViewTx.setText(String.format(Locale.ENGLISH, "%d", numTx));
+        textViewRx.setText(String.format(Locale.ENGLISH, "%d", numRx));
     }
 
     @Override
@@ -393,6 +389,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 @Override
                 public void onSuccess(Object result) {
                     log(String.format("RX << %s", number));
+                    numRx++;
+                    updateStatus();
                 }
 
                 @Override
@@ -414,6 +412,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
             } else {
                 manager.sendMultipartTextMessage(number, null, parts, null, null);
             }
+            numTx++;
+            updateStatus();
         }
     }
 }
