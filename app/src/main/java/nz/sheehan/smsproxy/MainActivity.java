@@ -12,9 +12,6 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
-import android.text.format.DateFormat;
-import android.util.Log;
-import android.util.TimeUtils;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -22,22 +19,10 @@ import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.JsonArrayRequest;
-import com.android.volley.toolbox.JsonRequest;
-import com.android.volley.toolbox.Volley;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-
-import java.sql.Time;
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -48,7 +33,6 @@ public class MainActivity extends AppCompatActivity implements Observer {
     private static final int MY_PERMISSIONS_REQUEST_INTERNET = 3;
 
     private static String TAG = "MainActivity";
-    private static String SERVER = "http://192.168.1.6:4000";
     private static final int POLL_DELAY = 5 * 1000;
     private static final int TEARDOWN_DELAY = 1000;
     private static final int CONNECTION_DELAY = 1000;
@@ -103,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
         scrollViewLog = findViewById(R.id.scrollViewLog);
 
         final Runnable checkOutboxRunnable = new Runnable() {
-            public Runnable thisRunnable = this;
+            private Runnable thisRunnable = this;
             @Override
             public void run() {
                 if (state == ConnectionState.Connected) {
@@ -221,7 +205,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
             }
         });
 
-        ((TextView)findViewById(R.id.editTextServer)).setText(SERVER);
+        ((TextView)findViewById(R.id.editTextServer)).setText(getString(R.string.default_server));
 
         updateStatus();
     }
@@ -236,7 +220,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
      * @param message The message to print to the console.
      */
     private void log(String message) {
-        String dateString = new SimpleDateFormat("dd/MM/YY HH:mm:ss").format(new Date());
+        String dateString = new SimpleDateFormat("dd/MM/YY HH:mm:ss", Locale.ENGLISH).format(new Date());
         textViewLog.append(String.format("%s - %s", dateString, message.concat("\r\n")));
         scrollViewLog.fullScroll(View.FOCUS_DOWN); // scroll to the bottom
     }
@@ -357,50 +341,48 @@ public class MainActivity extends AppCompatActivity implements Observer {
         buttonConnectToggle.setEnabled(buttonEnabled);
     }
 
-    /**
-     * Receives a new SMS message, if it is multipart, it will be reassembled.
-     * @param observable
-     * @param data
-     */
     @Override
     public void update(Observable observable, Object data) {
         Intent intent = (Intent)data;
         Bundle bundle = intent.getExtras();
         SmsMessage[] messages;
-        String format = bundle.getString("format");
 
-        Object[] pdus = (Object[])bundle.get("pdus");
+        if (bundle != null) {
+            String format = bundle.getString("format");
 
-        if (pdus != null) {
-            messages = new SmsMessage[pdus.length];
-            for (int i = 0; i < pdus.length; i++) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    messages[i] = SmsMessage.createFromPdu((byte[])pdus[i], format);
-                } else {
-                    messages[i] = SmsMessage.createFromPdu((byte[])pdus[i]);
-                }
+            Object[] pdus = (Object[]) bundle.get("pdus");
 
-            }
-
-            SmsMessage sms = messages[0];
-            String text = sms.getDisplayMessageBody();
-            String number = sms.getDisplayOriginatingAddress();
-
-            try {
-                if (!(messages.length == 1 || sms.isReplace())) {
-                    StringBuilder bodyText = new StringBuilder();
-                    for (int i = 0; i < messages.length; i++) {
-                        bodyText.append(messages[i].getMessageBody());
+            if (pdus != null) {
+                messages = new SmsMessage[pdus.length];
+                for (int i = 0; i < pdus.length; i++) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        messages[i] = SmsMessage.createFromPdu((byte[]) pdus[i], format);
+                    } else {
+                        messages[i] = SmsMessage.createFromPdu((byte[]) pdus[i]);
                     }
-                    text = bodyText.toString();
+
                 }
-            } catch (Exception error) {
-                logError(error);
-                return;
+
+                SmsMessage sms = messages[0];
+                String text = sms.getDisplayMessageBody();
+                String number = sms.getDisplayOriginatingAddress();
+
+                try {
+                    if (!(messages.length == 1 || sms.isReplace())) {
+                        StringBuilder bodyText = new StringBuilder();
+                        for (SmsMessage message : messages) {
+                            bodyText.append(message.getMessageBody());
+                        }
+                        text = bodyText.toString();
+                    }
+                } catch (Exception error) {
+                    logError(error);
+                    return;
+                }
+
+                receiveSms(number, text);
+
             }
-
-            receiveSms(number, text);
-
         }
     }
 
