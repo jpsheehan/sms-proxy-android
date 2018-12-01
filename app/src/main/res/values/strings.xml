@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">SMS Proxy</string>
+    <string name="button_sms_receive_granted">SMS Receive Permission Granted</string>
+    <string name="button_sms_send_granted">SMS Send Permission Granted</string>
+    <string name="button_internet_granted">Internet Permission Granted</string>
+    <string name="button_sms_receive_denied">Grant SMS Receive Permission</string>
+    <string name="button_sms_send_denied">Grant SMS Send Permission</string>
+    <string name="button_internet_denied">Grant Internet Permission</string>
+
+    <string name="button_connect">Connect to Server</string>
+    <string name="button_disconnect">Disconnect from Server</string>
+
+    <string name="default_server">http://192.168.1.6:4000/</string>
+    <string name="server_hint">http://example.com:3000</string>
+</resources>
