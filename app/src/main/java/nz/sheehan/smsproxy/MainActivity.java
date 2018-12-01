@@ -2,12 +2,16 @@ package nz.sheehan.smsproxy;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationManagerCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.telephony.SmsManager;
@@ -37,6 +41,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
     private static final int POLL_DELAY = 5 * 1000;
     private static final int TEARDOWN_DELAY = 1000;
     private static final int CONNECTION_DELAY = 1000;
+    private static String CHANNEL_ID = "SMSPROXY";
+    private static final int NOTIFICATION_ID = 42;
 
     private boolean smsSendEnabled = false;
     private boolean smsReceiveEnabled = false;
@@ -45,6 +51,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
 
     private int numRx = 0;
     private int numTx = 0;
+
+    private NotificationCompat.Builder builder;
 
     private SmsProxy proxy;
     private Handler poller;
@@ -64,8 +72,18 @@ public class MainActivity extends AppCompatActivity implements Observer {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        createNotificationChannel();
+
         self = this;
         poller = new Handler();
+        builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("SMS Proxy")
+                .setContentText("SMS Proxy is disconnected")
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setSmallIcon(R.drawable.ic_sms_proxy);
+
+        final NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+        notificationManager.notify(NOTIFICATION_ID, builder.build());
 
         ObservableObject.getInstance().addObserver(this);
 
@@ -164,6 +182,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
                                     String version = (String)result;
                                     log(String.format("sms-router v%s", version));
                                     log("listening...");
+                                    builder.setContentText(String.format("SMS Proxy is connected to %s", proxy.getServer()));
+                                    notificationManager.notify(NOTIFICATION_ID, builder.build());
 
                                     // delay for 1 second to print the previous messages
                                     poller.postDelayed(checkOutboxRunnable, 1000);
@@ -193,6 +213,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
                         public void run() {
                             state = ConnectionState.Disconnected;
                             log("disconnected");
+                            builder.setContentText(String.format("SMS Proxy is disconnected"));
+                            notificationManager.notify(NOTIFICATION_ID, builder.build());
                             log(String.format(Locale.ENGLISH, "sent %d sms messages", numTx));
                             log(String.format(Locale.ENGLISH, "received %d sms messages", numRx));
                             updateStatus();
@@ -206,6 +228,22 @@ public class MainActivity extends AppCompatActivity implements Observer {
         ((TextView)findViewById(R.id.editTextServer)).setText(getString(R.string.default_server));
 
         updateStatus();
+    }
+
+    private void createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CharSequence name = getString(R.string.channel_name);
+            String description = getString(R.string.channel_description);
+            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
+            channel.setDescription(description);
+            // Register the channel with the system; you can't change the importance
+            // or other notification behaviors after this
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
     }
 
     public void hideSoftKeyboard() {
