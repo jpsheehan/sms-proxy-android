@@ -21,6 +21,22 @@
             android:layout_height="wrap_content"
             android:text="@string/button_denied" />
 
+        <EditText
+            android:id="@+id/editTextServer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="@string/server_hint"
+            android:inputType="textWebEditText"
+            android:singleLine="true"
+            android:text="@string/default_server" />
+
+        <Button
+            android:id="@+id/buttonConnectToggle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/button_connect" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -50,7 +66,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
 
             <TextView
                 android:id="@+id/textViewTxHelper"
@@ -72,22 +89,6 @@
                 android:textColor="@android:color/holo_red_dark"
                 android:textSize="10sp" />
         </LinearLayout>
-
-        <EditText
-            android:id="@+id/editTextServer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ems="10"
-            android:hint="@string/server_hint"
-            android:inputType="textWebEditText"
-            android:singleLine="true"
-            android:text="@string/default_server" />
-
-        <Button
-            android:id="@+id/buttonConnectToggle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/button_connect" />
 
         <ScrollView
             android:id="@+id/scrollViewLog"

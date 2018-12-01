@@ -12,6 +12,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
+import android.util.Log;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -32,7 +33,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
     private static final int MY_PERMISSIONS_REQUEST_RECEIVE_SMS = 2;
     private static final int MY_PERMISSIONS_REQUEST_INTERNET = 3;
 
-    private static String TAG = "MainActivity";
+    private static String TAG = "JP";
     private static final int POLL_DELAY = 5 * 1000;
     private static final int TEARDOWN_DELAY = 1000;
     private static final int CONNECTION_DELAY = 1000;
@@ -140,6 +141,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 checkForSmsSendPermission();
                 checkForSmsReceivePermission();
                 checkForInternetPermission();
+                updateStatus();
             }
         });
         buttonConnectToggle.setOnClickListener(new View.OnClickListener() {
@@ -248,7 +250,6 @@ public class MainActivity extends AppCompatActivity implements Observer {
                     MY_PERMISSIONS_REQUEST_RECEIVE_SMS);
         } else {
             smsReceiveEnabled = true;
-            updateStatus();
         }
     }
 
@@ -264,7 +265,6 @@ public class MainActivity extends AppCompatActivity implements Observer {
                     MY_PERMISSIONS_REQUEST_INTERNET);
         } else {
             internetEnabled = true;
-            updateStatus();
         }
     }
 
@@ -281,7 +281,6 @@ public class MainActivity extends AppCompatActivity implements Observer {
         } else {
             // Permission already granted. Enable the message button.
             smsSendEnabled = true;
-            updateStatus();
         }
     }
 
@@ -292,18 +291,35 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 case MY_PERMISSIONS_REQUEST_SEND_SMS: {
                     smsSendEnabled = (permissions[0].equalsIgnoreCase(Manifest.permission.SEND_SMS)
                             && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+                    if (smsSendEnabled) {
+                        Log.d(TAG, "onRequestPermissionsResult: Granted send sms");
+                    }
                 }
                 case MY_PERMISSIONS_REQUEST_RECEIVE_SMS: {
                     smsReceiveEnabled = (permissions[0].equalsIgnoreCase(Manifest.permission.RECEIVE_SMS)
                             && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+                    if (smsReceiveEnabled) {
+                        Log.d(TAG, "onRequestPermissionsResult: Granted receive sms");
+                    }
                 }
                 case MY_PERMISSIONS_REQUEST_INTERNET: {
                     internetEnabled = (permissions[0].equalsIgnoreCase(Manifest.permission.INTERNET)
                             && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+                    if (internetEnabled) {
+                        Log.d(TAG, "onRequestPermissionsResult: Granted internet");
+                    }
                 }
             }
+            checkForSmsSendPermission();
+            checkForSmsReceivePermission();
+            checkForInternetPermission();
             updateStatus();
         }
+    }
+
+    private void updateStats() {
+        textViewTx.setText(String.format(Locale.ENGLISH, "%d", numTx));
+        textViewRx.setText(String.format(Locale.ENGLISH, "%d", numRx));
     }
 
     /**
@@ -311,9 +327,12 @@ public class MainActivity extends AppCompatActivity implements Observer {
      */
     private void updateStatus() {
 
+        Log.d(TAG, String.format("updateStatus: Updating... %s %s %s", smsSendEnabled ? "Y" : "N", smsReceiveEnabled ? "Y" : "N", internetEnabled ? "Y" : "N"));
+
         boolean permissionsGranted = smsSendEnabled && smsReceiveEnabled && internetEnabled;
 
         buttonGrantPermissions.setEnabled(!permissionsGranted);
+        buttonGrantPermissions.setVisibility(permissionsGranted ? View.GONE : View.VISIBLE);
 
         buttonGrantPermissions.setText(permissionsGranted
                 ? R.string.button_granted : R.string.button_denied);
@@ -333,8 +352,8 @@ public class MainActivity extends AppCompatActivity implements Observer {
         buttonConnectToggle.setText(buttonText);
         buttonConnectToggle.setEnabled(buttonEnabled);
 
-        textViewTx.setText(String.format(Locale.ENGLISH, "%d", numTx));
-        textViewRx.setText(String.format(Locale.ENGLISH, "%d", numRx));
+        updateStats();
+
     }
 
     @Override
@@ -390,7 +409,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 public void onSuccess(Object result) {
                     log(String.format("RX << %s", number));
                     numRx++;
-                    updateStatus();
+                    updateStats();
                 }
 
                 @Override
@@ -413,7 +432,7 @@ public class MainActivity extends AppCompatActivity implements Observer {
                 manager.sendMultipartTextMessage(number, null, parts, null, null);
             }
             numTx++;
-            updateStatus();
+            updateStats();
         }
     }
 }
