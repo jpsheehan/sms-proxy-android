@@ -1,4 +1,4 @@
-# SMS Router Portal
+# SMS Proxy for Android
 
 *Written by JP Sheehan. Licensed under the GPLv3.*
 
